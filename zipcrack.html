@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ZIP Cracker CTF</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background-color: black;
+            color: #00ff00;
+            font-family: monospace;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .title {
+            text-align: center;
+            font-size: 2.5em;
+            margin-bottom: 20px;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+
+        .upload-section {
+            border: 1px solid #00ff00;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .upload-icon {
+            font-size: 3em;
+            margin-bottom: 10px;
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        .upload-label {
+            cursor: pointer;
+            padding: 10px 20px;
+            border: 1px solid #00ff00;
+            border-radius: 4px;
+            display: inline-block;
+        }
+
+        .upload-label:hover {
+            background-color: #003300;
+        }
+
+        .crack-button {
+            width: 100%;
+            padding: 15px;
+            background-color: #003300;
+            color: #00ff00;
+            border: 1px solid #00ff00;
+            border-radius: 4px;
+            cursor: pointer;
+            font-family: monospace;
+            font-size: 1.2em;
+            margin-bottom: 20px;
+        }
+
+        .crack-button:hover {
+            background-color: #004400;
+        }
+
+        .crack-button:disabled {
+            background-color: #300000;
+            cursor: not-allowed;
+        }
+
+        .progress-bar {
+            height: 10px;
+            background-color: #111;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background-color: #00ff00;
+            width: 0%;
+            transition: width 0.2s ease;
+        }
+
+        .terminal {
+            border: 1px solid #00ff00;
+            padding: 20px;
+            border-radius: 8px;
+            background-color: #000;
+            min-height: 400px;
+            overflow-y: auto;
+            font-family: monospace;
+        }
+
+        .terminal-header {
+            margin-bottom: 10px;
+            color: #00ff00;
+        }
+
+        .attempt {
+            margin: 5px 0;
+            padding: 5px;
+        }
+
+        .attempt.failed {
+            color: #ff0000;
+        }
+
+        .attempt.success {
+            color: #00ff00;
+            font-weight: bold;
+        }
+
+        .animate-typing {
+            overflow: hidden;
+            white-space: nowrap;
+            animation: typing 0.5s steps(30, end);
+        }
+
+        @keyframes typing {
+            from { width: 0 }
+            to { width: 100% }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="title">ZIP_CRACKER.exe</h1>
+        <div class="upload-section">
+            <div class="upload-icon">📁</div>
+            <label class="upload-label">
+                SELECT_TARGET.zip
+                <input type="file" class="file-input" accept=".zip" id="fileInput">
+            </label>
+            <div id="fileName" style="margin-top: 10px;"></div>
+        </div>
+
+        <button id="crackButton" class="crack-button" disabled>INITIATE_CRACK.exe</button>
+
+        <div id="progressBar" class="progress-bar" style="display: none;">
+            <div id="progressFill" class="progress-fill"></div>
+        </div>
+
+        <div class="terminal" id="terminal">
+            <div class="terminal-header">TERMINAL_OUTPUT:</div>
+            <div id="terminalContent"></div>
+        </div>
+    </div>
+
+    <script>
+        // Generate 100 passwords with "p@ssw0rd" at position 67
+        const passwords = [];
+        const correctPassword = "p@ssw0rd";
+
+        // Function to generate random passwords that look similar to common passwords
+        function generateRandomPassword() {
+            const patterns = [
+                "pass" + Math.random().toString(36).substring(2, 5),
+                "admin" + Math.floor(Math.random() * 999),
+                "user" + Math.floor(Math.random() * 999),
+                "secret" + Math.floor(Math.random() * 99),
+                "password" + Math.floor(Math.random() * 99),
+                "secure" + Math.floor(Math.random() * 99)
+            ];
+            return patterns[Math.floor(Math.random() * patterns.length)];
+        }
+
+        // Fill the first 67 positions with random passwords
+        for (let i = 0; i < 67; i++) {
+            passwords.push(generateRandomPassword());
+        }
+
+        // Add the correct password at position 67
+        passwords.push(correctPassword);
+
+        // Fill the remaining positions
+        for (let i = 68; i < 100; i++) {
+            passwords.push(generateRandomPassword());
+        }
+        
+        let cracking = false;
+
+        document.getElementById('fileInput').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file && file.name.endsWith('.zip')) {
+                document.getElementById('fileName').textContent = `TARGET_ACQUIRED: ${file.name}`;
+                document.getElementById('crackButton').disabled = false;
+            } else {
+                alert('Please upload a ZIP file');
+                document.getElementById('fileName').textContent = '';
+                document.getElementById('crackButton').disabled = true;
+            }
+        });
+
+        async function addTerminalLine(text, className = '') {
+            const terminal = document.getElementById('terminalContent');
+            const line = document.createElement('div');
+            line.className = `attempt animate-typing ${className}`;
+            line.textContent = text;
+            terminal.appendChild(line);
+            terminal.scrollTop = terminal.scrollHeight;
+            
+            // Wait for animation
+            await new Promise(resolve => setTimeout(resolve, 50));
+        }
+
+        async function crackPassword() {
+            if (cracking) return;
+            
+            cracking = true;
+            const button = document.getElementById('crackButton');
+            const progressBar = document.getElementById('progressBar');
+            const progressFill = document.getElementById('progressFill');
+            
+            button.textContent = 'CRACKING_IN_PROGRESS...';
+            button.disabled = true;
+            progressBar.style.display = 'block';
+            document.getElementById('terminalContent').innerHTML = '';
+
+            for (let i = 0; i < passwords.length; i++) {
+                const password = passwords[i];
+                
+                // Update progress
+                const progress = ((i + 1) / passwords.length) * 100;
+                progressFill.style.width = `${progress}%`;
+                
+                if (password === correctPassword) {
+                    await addTerminalLine(`ATTEMPT_${i + 1}: ${password} [SUCCESS]`, 'success');
+                    await addTerminalLine(`PASSWORD_FOUND: ${password}`, 'success');
+                    break;
+                } else {
+                    await addTerminalLine(`ATTEMPT_${i + 1}: ${password} [ACCESS_DENIED]`, 'failed');
+                }
+                
+                await new Promise(resolve => setTimeout(resolve, 100));
+            }
+            
+            button.textContent = 'INITIATE_CRACK.exe';
+            button.disabled = false;
+            cracking = false;
+        }
+
+        document.getElementById('crackButton').addEventListener('click', crackPassword);
+    </script>
+</body>
+</html>
